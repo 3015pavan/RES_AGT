@@ -1,129 +1,96 @@
-# RES_AGT - Unified Agentic AI Academic Backend
+# RES_AGT - Agentic AI Academic Data System
 
-A production-oriented full-stack project for academic result ingestion, grounded chat, and report generation.
+RES_AGT is an AI agent project for academic data ingestion, retrieval, and reasoning.
 
-## Overview
+Primary focus:
 
-This repository contains:
+- agentic query handling over real stored data
+- grounded answers from SQL and vector retrieval
+- no hallucinated records
 
-- A FastAPI backend for:
-  - file ingestion (CSV, XLSX, PDF)
-  - optional email polling ingestion
-  - grounded chat and report generation
-  - Supabase SQL + pgvector retrieval
-- A Next.js 14 frontend for:
-  - upload, chat, student/document browsing, reports, and status views
+Frontend exists as an optional client UI. The core of the project is the agent backend.
 
-Core retrieval contract:
+## Agent Capabilities
 
-- Responses are grounded in persisted data only.
-- If no data is found, the response is exactly: NO DATA AVAILABLE.
+- Ingest structured and unstructured academic documents (CSV, XLSX, PDF)
+- Normalize data into students, subjects, and results
+- Parse complex documents with LlamaParse when configured
+- Answer chat queries using LangGraph-based agent flow
+- Generate SQL-grounded reports
+- Return exact fallback message when data is missing: NO DATA AVAILABLE
 
-## Tech Stack
+## Architecture
 
-Backend:
+Core runtime:
 
-- FastAPI
-- Supabase (PostgreSQL + pgvector)
-- LangGraph
-- sentence-transformers
-- LlamaParse (for document parsing when configured)
+- FastAPI API layer
+- LangGraph agent orchestration
+- Supabase PostgreSQL + pgvector
+- sentence-transformers embeddings
+- LlamaParse integration for document extraction
 
-Frontend:
+Optional UI:
 
-- Next.js 14 (App Router)
-- React + TypeScript
-- Tailwind CSS
+- Next.js 14 frontend in frontend/
 
-## Repository Structure
+## Project Structure
 
-- app/ : backend application code
-- app/db/sql/schema.sql : database schema and RPC functions
-- frontend/ : Next.js UI
+- app/ : agent backend and services
+- app/agents/ : query planning, intent extraction, response formatting
+- app/services/ : ingestion, parsing, embeddings, reports
+- app/db/sql/schema.sql : schema + RPC functions
 - tests/integration/ : integration tests
-- Dockerfile : backend container image
-- docker-compose.yml : API + worker services
+- frontend/ : optional UI client
 
-## Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- npm
-- Supabase project with schema applied
-
-## Environment Setup
+## Quick Start (Agent Backend)
 
 1. Copy .env.example to .env
-2. Fill required values:
+2. Fill required variables
+3. Install dependencies
+4. Run API server
 
-Required:
+Commands:
 
-- SUPABASE_URL
-- SUPABASE_KEY (or SUPABASE_SERVICE_ROLE_KEY)
-- LLM_API_KEY
-- HF_API_KEY (or EMBEDDING_API_KEY)
-- API_KEY (or scoped API_KEYS)
+1. pip install -r requirements.txt
+2. python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
 
-Optional:
-
-- LLAMA_CLOUD_API_KEY
-- LLAMA_PARSE_RESULT_TYPE (markdown or text)
-- EMAIL_AUTOMATION_ENABLED and IMAP/SMTP variables for email flows
-
-## Backend Setup (Local)
-
-1. Create and activate a virtual environment
-2. Install dependencies:
-
-   pip install -r requirements.txt
-
-3. Run backend:
-
-   python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
-
-4. API docs:
+OpenAPI:
 
 - http://127.0.0.1:8010/docs
 
-## Frontend Setup (Local)
+## Required Environment
 
-1. Go to frontend:
+Minimum required for backend agent:
 
-   cd frontend
+- SUPABASE_URL
+- SUPABASE_KEY or SUPABASE_SERVICE_ROLE_KEY
+- LLM_API_KEY
+- HF_API_KEY or EMBEDDING_API_KEY
+- API_KEY (or scoped API_KEYS)
 
-2. Install dependencies:
+Optional but recommended:
 
-   npm install
+- LLAMA_CLOUD_API_KEY
+- LLAMA_PARSE_RESULT_TYPE=markdown
+- LLM_PARSER_ENABLED=true
 
-3. Configure frontend env:
+Email automation (optional):
 
-- Create frontend/.env.local
-- Set:
-  - NEXT_PUBLIC_API_BASE_URL
-  - BACKEND_API_BASE_URL
-  - BACKEND_API_KEY
+- EMAIL_AUTOMATION_ENABLED=true plus IMAP/SMTP values
 
-4. Run:
-
-   npm run dev
-
-5. Open:
-
-- http://localhost:3000
-
-## API Endpoints
+## API Surface
 
 Ingestion:
 
 - POST /upload
 - POST /email/poll
 
-Query:
+Agent Query:
 
 - POST /chat
 - POST /report
 
-Catalog:
+Data Catalog:
 
 - GET /students
 - GET /documents
@@ -134,35 +101,39 @@ Ops:
 - GET /ready
 - GET /metrics
 
-Authentication:
+Auth:
 
-- Provide x-api-key request header.
-- Scoped authorization is supported via API_KEYS.
+- x-api-key header is required on protected endpoints
 
-## Database
+## Data And Retrieval Contract
 
-Apply the SQL file before using chat and reports:
+- Agent answers must come from persisted database/vector retrieval
+- If retrieval is empty, response must be exactly NO DATA AVAILABLE
+
+## Database Setup
+
+Apply schema before using query/report flows:
 
 - app/db/sql/schema.sql
 
-The schema includes:
+Includes:
 
 - students, subjects, results
 - documents, vector_chunks
 - query_logs, email_logs, email_dead_letters
-- RPC functions for student lookup, ranking, aggregation, analysis, and reports
+- RPCs for lookup, ranking, aggregation, comparison, and reports
 
-## LlamaParse Integration
+## LlamaParse Wiring
 
-When LLAMA_CLOUD_API_KEY is configured:
+When LLAMA_CLOUD_API_KEY is set:
 
-- Ingestion attempts official LlamaParse document extraction
-- Parsed content is normalized and upserted into students/subjects/results
-- Existing deterministic and LLM-assisted fallback paths remain available
+- ingestion tries official LlamaParse extraction first
+- parsed output is normalized and stored
+- deterministic and LLM fallback parsers are still available
 
-## Testing
+## Integration Testing
 
-Integration tests:
+Test file:
 
 - tests/integration/test_real_data_flow.py
 
@@ -170,29 +141,37 @@ Run:
 
 - pytest tests/integration/test_real_data_flow.py
 
-Notes:
+Environment for tests:
 
-- Tests are real-service integration style (no mock business data).
-- Configure INTEGRATION_API_BASE_URL and optional integration env values.
+- INTEGRATION_API_BASE_URL
+
+## Optional Frontend
+
+If you want UI usage:
+
+1. cd frontend
+2. npm install
+3. configure frontend/.env.local
+4. npm run dev
 
 ## Docker
 
-Start services:
+Run backend services:
 
 - docker compose up --build
 
 Services:
 
-- api: FastAPI app
-- worker: email polling worker
+- api
+- worker
 
-## Production Notes
+## Operational Notes
 
-- Do not commit real secrets in .env files.
-- Keep node_modules and build caches out of Git.
-- Use scoped API keys for least privilege.
-- Validate readiness at /ready after deployment.
+- Never commit real secrets
+- Keep generated artifacts out of Git
+- Use scoped API keys for least privilege
+- Check /ready after deploy
 
 ## License
 
-No license file is currently included. Add one if this project is to be distributed publicly.
+No license file is currently included.
