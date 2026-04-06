@@ -8,15 +8,14 @@ Primary focus:
 - grounded answers from SQL and vector retrieval
 - no hallucinated records
 
-Frontend exists as an optional client UI. The core of the project is the agent backend.
-
 ## Agent Capabilities
 
 - Ingest structured and unstructured academic documents (CSV, XLSX, PDF)
 - Normalize data into students, subjects, and results
-- Parse complex documents with LlamaParse when configured
+- Parse complex documents with LlamaParse
 - Answer chat queries using LangGraph-based agent flow
 - Generate SQL-grounded reports
+- Ingest and process email data through worker flow
 - Return exact fallback message when data is missing: NO DATA AVAILABLE
 
 ## Architecture
@@ -28,8 +27,9 @@ Core runtime:
 - Supabase PostgreSQL + pgvector
 - sentence-transformers embeddings
 - LlamaParse integration for document extraction
+- Email worker for IMAP polling and SMTP response flow
 
-Optional UI:
+Application UI:
 
 - Next.js 14 frontend in frontend/
 
@@ -40,43 +40,62 @@ Optional UI:
 - app/services/ : ingestion, parsing, embeddings, reports
 - app/db/sql/schema.sql : schema + RPC functions
 - tests/integration/ : integration tests
-- frontend/ : optional UI client
+- frontend/ : application web client
+- docker-compose.yml : API + worker orchestration
+- Dockerfile : backend runtime image
 
-## Quick Start (Agent Backend)
+## Quick Start
 
 1. Copy .env.example to .env
 2. Fill required variables
-3. Install dependencies
-4. Run API server
+3. Install backend dependencies
+4. Start backend API
+5. Install frontend dependencies
+6. Start frontend UI
 
-Commands:
+Backend commands:
 
 1. pip install -r requirements.txt
 2. python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
 
-OpenAPI:
+Backend OpenAPI:
 
 - http://127.0.0.1:8010/docs
 
+Frontend commands:
+
+1. cd frontend
+2. npm install
+3. npm run dev
+
+Frontend URL:
+
+- http://localhost:3000
+
 ## Required Environment
 
-Minimum required for backend agent:
+Core backend variables:
 
 - SUPABASE_URL
 - SUPABASE_KEY or SUPABASE_SERVICE_ROLE_KEY
 - LLM_API_KEY
 - HF_API_KEY or EMBEDDING_API_KEY
 - API_KEY (or scoped API_KEYS)
-
-Optional but recommended:
-
 - LLAMA_CLOUD_API_KEY
 - LLAMA_PARSE_RESULT_TYPE=markdown
 - LLM_PARSER_ENABLED=true
 
-Email automation (optional):
+Email ingestion variables:
 
-- EMAIL_AUTOMATION_ENABLED=true plus IMAP/SMTP values
+- EMAIL_AUTOMATION_ENABLED=true
+- IMAP_HOST, IMAP_PORT, IMAP_USER/IMAP_USERNAME, IMAP_PASSWORD
+- SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+
+Frontend variables (frontend/.env.local):
+
+- NEXT_PUBLIC_API_BASE_URL
+- BACKEND_API_BASE_URL
+- BACKEND_API_KEY
 
 ## API Surface
 
@@ -109,6 +128,7 @@ Auth:
 
 - Agent answers must come from persisted database/vector retrieval
 - If retrieval is empty, response must be exactly NO DATA AVAILABLE
+- SQL and vector retrieval are grounded by stored data only
 
 ## Database Setup
 
@@ -125,11 +145,22 @@ Includes:
 
 ## LlamaParse Wiring
 
-When LLAMA_CLOUD_API_KEY is set:
+- LlamaParse extraction is integrated into ingestion flow
+- Parsed output is normalized and stored in unified tables
+- Deterministic and LLM fallback parsers remain in pipeline for robustness
 
-- ingestion tries official LlamaParse extraction first
-- parsed output is normalized and stored
-- deterministic and LLM fallback parsers are still available
+## Email Worker
+
+Start worker loop:
+
+- python -m app.worker.email_worker
+
+Worker responsibilities:
+
+- Poll unread emails from IMAP
+- Ingest body and attachments into the same data model
+- Trigger grounded responses for query emails
+- Send replies using SMTP
 
 ## Integration Testing
 
@@ -145,18 +176,9 @@ Environment for tests:
 
 - INTEGRATION_API_BASE_URL
 
-## Optional Frontend
-
-If you want UI usage:
-
-1. cd frontend
-2. npm install
-3. configure frontend/.env.local
-4. npm run dev
-
 ## Docker
 
-Run backend services:
+Run application services:
 
 - docker compose up --build
 
@@ -171,6 +193,7 @@ Services:
 - Keep generated artifacts out of Git
 - Use scoped API keys for least privilege
 - Check /ready after deploy
+- Apply schema migrations before production startup
 
 ## License
 
