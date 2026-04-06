@@ -1,0 +1,5 @@
+-- Migration package marker for unified schema + functions.
+-- Apply app/db/sql/schema.sql in Supabase SQL editor, then mark migration as applied:
+-- insert into schema_migrations(version, description)
+-- values ('001_unified_schema', 'Unified schema, rpc functions, and hardening tables')
+-- on conflict (version) do nothing;
