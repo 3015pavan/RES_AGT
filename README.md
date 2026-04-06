@@ -1,133 +1,198 @@
-# Unified Agentic AI Backend (Phase 2 Foundation)
+# RES_AGT - Unified Agentic AI Academic Backend
 
-This repository provides the production-oriented backend foundation for a real-data-only agentic AI system.
+A production-oriented full-stack project for academic result ingestion, grounded chat, and report generation.
 
-## Rules Enforced
-- No mock or seeded business data.
-- Responses are generated only from Supabase PostgreSQL and pgvector retrievals.
-- If no retrieval data exists, response is exactly: NO DATA AVAILABLE.
-- LLM is restricted to normalization, intent extraction, and formatting.
+## Overview
 
-## Run
-1. Create and activate virtual environment.
+This repository contains:
+
+- A FastAPI backend for:
+  - file ingestion (CSV, XLSX, PDF)
+  - optional email polling ingestion
+  - grounded chat and report generation
+  - Supabase SQL + pgvector retrieval
+- A Next.js 14 frontend for:
+  - upload, chat, student/document browsing, reports, and status views
+
+Core retrieval contract:
+
+- Responses are grounded in persisted data only.
+- If no data is found, the response is exactly: NO DATA AVAILABLE.
+
+## Tech Stack
+
+Backend:
+
+- FastAPI
+- Supabase (PostgreSQL + pgvector)
+- LangGraph
+- sentence-transformers
+- LlamaParse (for document parsing when configured)
+
+Frontend:
+
+- Next.js 14 (App Router)
+- React + TypeScript
+- Tailwind CSS
+
+## Repository Structure
+
+- app/ : backend application code
+- app/db/sql/schema.sql : database schema and RPC functions
+- frontend/ : Next.js UI
+- tests/integration/ : integration tests
+- Dockerfile : backend container image
+- docker-compose.yml : API + worker services
+
+## Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- npm
+- Supabase project with schema applied
+
+## Environment Setup
+
+1. Copy .env.example to .env
+2. Fill required values:
+
+Required:
+
+- SUPABASE_URL
+- SUPABASE_KEY (or SUPABASE_SERVICE_ROLE_KEY)
+- LLM_API_KEY
+- HF_API_KEY (or EMBEDDING_API_KEY)
+- API_KEY (or scoped API_KEYS)
+
+Optional:
+
+- LLAMA_CLOUD_API_KEY
+- LLAMA_PARSE_RESULT_TYPE (markdown or text)
+- EMAIL_AUTOMATION_ENABLED and IMAP/SMTP variables for email flows
+
+## Backend Setup (Local)
+
+1. Create and activate a virtual environment
 2. Install dependencies:
-   - `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` and fill all required values.
-4. Run API:
-   - `uvicorn app.main:app --reload`
-5. Include API key in requests:
-   - `x-api-key: <API_KEY>`
-   - or use scoped key from `API_KEYS`.
 
-## Endpoints
+   pip install -r requirements.txt
+
+3. Run backend:
+
+   python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
+
+4. API docs:
+
+- http://127.0.0.1:8010/docs
+
+## Frontend Setup (Local)
+
+1. Go to frontend:
+
+   cd frontend
+
+2. Install dependencies:
+
+   npm install
+
+3. Configure frontend env:
+
+- Create frontend/.env.local
+- Set:
+  - NEXT_PUBLIC_API_BASE_URL
+  - BACKEND_API_BASE_URL
+  - BACKEND_API_KEY
+
+4. Run:
+
+   npm run dev
+
+5. Open:
+
+- http://localhost:3000
+
+## API Endpoints
+
+Ingestion:
+
 - POST /upload
 - POST /email/poll
+
+Query:
+
 - POST /chat
+- POST /report
+
+Catalog:
+
 - GET /students
 - GET /documents
-- POST /report
+
+Ops:
+
 - GET /health
 - GET /ready
 - GET /metrics
 
-Upload response includes:
-- rows_ingested
-- documents_created
-- document_ids
+Authentication:
 
-## Scoped Authorization
-- Legacy full-access key:
-   - `API_KEY=<value>` grants all scopes.
-- Scoped keys:
-   - `API_KEYS=<key1>:ingest:upload|query:chat,<key2>:read:students|read:documents`
-- Route scope map:
-   - `/upload` -> `ingest:upload`
-   - `/email/poll` -> `ingest:email`
-   - `/chat` -> `query:chat`
-   - `/report` -> `report:generate`
-   - `/students` -> `read:students`
-   - `/documents` -> `read:documents`
+- Provide x-api-key request header.
+- Scoped authorization is supported via API_KEYS.
 
-## Notes
-- SQL schema is in `app/db/sql/schema.sql`.
-- LangGraph flow is in `app/agents/graph.py`.
-- Email polling and attachment ingestion use the same normalization path as upload ingestion.
+## Database
 
-## Phase 3 Additions
-- Deterministic tabular normalization maps CSV/XLSX columns to canonical fields before DB upsert.
-- Structured rows are upserted into unified `students`, `subjects`, and `results` tables.
-- SQL RPC function package is included for all intents and reports.
-- `student_report` computes SGPA from credits and grade scale (customizable via request payload).
+Apply the SQL file before using chat and reports:
 
-## Phase 4 Hardening
-- Request tracing middleware attaches and returns `x-request-id`.
-- In-memory rate limiting is enabled with `RATE_LIMIT_PER_MINUTE`.
-- API key authentication is required for data endpoints.
-- Standardized JSON error envelope is returned for handled and unhandled errors.
-- Startup readiness checks validate env and Supabase connectivity.
-- Grok, IMAP, and SMTP calls are guarded with retries and timeouts.
-- Email attachment idempotency is enforced via SHA-256 hash tracking.
+- app/db/sql/schema.sql
 
-## Phase 5 Hardening And Deployment
-- CORS and trusted-host policies are configurable via environment variables.
-- Request-size middleware enforces global body size limits.
-- Structured JSON logs include correlated request_id for traceability.
-- Request audit logs capture method, path, status, latency, and client host.
-- Lightweight metrics endpoint exposes request totals, error totals, and average latency.
-- Worker loop supports graceful shutdown on process signals.
-- Dockerfile and docker-compose provide supervised API and worker services.
+The schema includes:
 
-## Phase 6 Additions
-- Migration package markers are stored in `app/db/migrations`.
-- Startup readiness now enforces migration guard by validating `schema_migrations` versions.
-- OpenAPI metadata now includes grouped tags, endpoint summaries, and request examples.
-- Endpoint authorization is scope-aware with explicit per-route requirements.
-- CI workflow added for lint, compile, integration command, and container build verification.
+- students, subjects, results
+- documents, vector_chunks
+- query_logs, email_logs, email_dead_letters
+- RPC functions for student lookup, ranking, aggregation, analysis, and reports
 
-## Additional Reliability And Audit Features
-- `query_logs` stores query path metadata (intent, tool choice, result counts, status).
-- `email_dead_letters` stores failed email processing records for replay/investigation.
-- Circuit breaker guards added for Grok and embedding calls.
-- Upload content scanner blocks known dangerous signatures before processing.
+## LlamaParse Integration
 
-## Migration Guard Flow
-1. Apply schema SQL from `app/db/sql/schema.sql`.
-2. Ensure row exists in `schema_migrations` for required package versions.
-3. Check `/ready`; it will report pending migration versions if any are missing.
+When LLAMA_CLOUD_API_KEY is configured:
 
-## Container Run
-1. Copy environment file:
-   - cp .env.example .env
-2. Fill all environment variables in .env.
-3. Build and start services:
-   - docker compose up --build
-4. Stop services:
-   - docker compose down
+- Ingestion attempts official LlamaParse document extraction
+- Parsed content is normalized and upserted into students/subjects/results
+- Existing deterministic and LLM-assisted fallback paths remain available
 
-## Worker Mode
-Run continuous email automation worker:
-- `python -m app.worker.email_worker`
+## Testing
 
-The worker performs:
-- Poll unread emails
-- Ingest body and attachments into unified data system
-- Detect query emails and send SMTP replies
-- Repeat on configured interval (`EMAIL_POLL_INTERVAL_SECONDS`)
+Integration tests:
 
-## Apply Database Schema
-Run `app/db/sql/schema.sql` in Supabase SQL editor before using chat/report flows.
-
-## Integration Tests (Real Services Only)
-The integration suite does not use mock data. It runs against a deployed API and real configured backends.
-
-Required env:
-- `INTEGRATION_API_BASE_URL`
-
-Optional env:
-- `INTEGRATION_UPLOAD_FILE` for upload ingestion test
-- `INTEGRATION_CHAT_QUERY` for chat test override
-- `INTEGRATION_REPORT_USN` for scoped student report
-- `INTEGRATION_ENABLE_EMAIL_TEST=1` to run `/email/poll` test
+- tests/integration/test_real_data_flow.py
 
 Run:
-- `pytest tests/integration/test_real_data_flow.py`
+
+- pytest tests/integration/test_real_data_flow.py
+
+Notes:
+
+- Tests are real-service integration style (no mock business data).
+- Configure INTEGRATION_API_BASE_URL and optional integration env values.
+
+## Docker
+
+Start services:
+
+- docker compose up --build
+
+Services:
+
+- api: FastAPI app
+- worker: email polling worker
+
+## Production Notes
+
+- Do not commit real secrets in .env files.
+- Keep node_modules and build caches out of Git.
+- Use scoped API keys for least privilege.
+- Validate readiness at /ready after deployment.
+
+## License
+
+No license file is currently included. Add one if this project is to be distributed publicly.
